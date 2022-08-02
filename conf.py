@@ -131,11 +131,13 @@ extlinks = {
 #for i in conf.git.branches.published:
 #    extlinks[i] = ( ''.join([ conf.project.url, '/', i, '%s' ]), '' )
 
-intersphinx_mapping = {}
-for i in conf.system.files.data.intersphinx:
-    intersphinx_mapping[i.name] = ( i.url, os.path.join(conf.paths.projectroot,
-                                                        conf.paths.output,
-                                                        i.path))
+intersphinx_mapping = {
+    i.name: (
+        i.url,
+        os.path.join(conf.paths.projectroot, conf.paths.output, i.path),
+    )
+    for i in conf.system.files.data.intersphinx
+}
 
 languages = [
     ("ar", "Arabic"),
@@ -181,8 +183,8 @@ manual_edition_path = '{0}/{1}/{2}'.format(conf.project.url,
 
 html_theme_options = {
     'branch': conf.git.branches.current,
-    'pdfpath': manual_edition_path + '-' + conf.git.branches.current + '.pdf',
-    'epubpath': manual_edition_path + '.epub',
+    'pdfpath': f'{manual_edition_path}-{conf.git.branches.current}.pdf',
+    'epubpath': f'{manual_edition_path}.epub',
     'manual_path': get_manual_path(conf),
     'translations': languages,
     'language': language,
@@ -198,9 +200,9 @@ html_theme_options = {
     'nav_excluded': sconf.theme.nav_excluded,
     'upcoming': conf.version.upcoming,
     'banner': True,
-    'banner_msg': 'This is an upcoming (in progress) version of the manual.'
-
+    'banner_msg': 'This is an upcoming (in progress) version of the manual.',
 }
+
 
 html_sidebars = sconf.sidebars
 
@@ -214,8 +216,10 @@ lexers["php-annotations"] = PhpLexer(startinline=True)
 
 latex_documents = []
 if 'pdfs' in conf.system.files.data:
-    for pdf in conf.system.files.data.pdfs:
-        latex_documents.append((pdf.source, pdf.output, pdf.title, pdf.author, pdf.doc_class))
+    latex_documents.extend(
+        (pdf.source, pdf.output, pdf.title, pdf.author, pdf.doc_class)
+        for pdf in conf.system.files.data.pdfs
+    )
 
 latex_preamble_elements = [ r'\DeclareUnicodeCharacter{FF04}{\$}',
                             r'\DeclareUnicodeCharacter{FF0E}{.}',
@@ -243,8 +247,10 @@ latex_appendices = []
 
 man_pages = []
 if 'manpages' in conf.system.files.data:
-    for mp in conf.system.files.data.manpages:
-        man_pages.append((mp.file, mp.name, mp.title, mp.authors, mp.section))
+    man_pages.extend(
+        (mp.file, mp.name, mp.title, mp.authors, mp.section)
+        for mp in conf.system.files.data.manpages
+    )
 
 # -- Options for Epub output ---------------------------------------------------
 

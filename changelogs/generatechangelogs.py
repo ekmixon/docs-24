@@ -16,8 +16,7 @@ def get_config():
         __file__), '..', 'config/changelog_conf.yaml'))
     with open(filepath) as stream:
         try:
-            config_yaml = yaml.safe_load(stream)
-            return config_yaml
+            return yaml.safe_load(stream)
         except yaml.YAMLError as exc:
             print(exc)
 
@@ -72,10 +71,10 @@ def get_issue_structure(config, issues, version):
     # setup container of heading groups using the defined ordering.
     headings = collections.OrderedDict()
     for k in config.get('ordering'):
-        headings[k] = list()
+        headings[k] = []
 
     # invert the mapping of groups to components so we can filter
-    groups = dict()
+    groups = {}
     for k, v in config.get('groups').items():
         for c in v:
             groups[c] = k
@@ -90,15 +89,15 @@ def get_issue_structure(config, issues, version):
             if c.name not in groups:
                 logger.error(
                     "undefined component %s. update configuration before continuing", c.name)
-                    
+
         # format issue summary to remove backticks
         # (necessary for next-gen)
 
         issue_summary = issue.fields.summary.encode("utf-8").replace('`', '')
-        
+
         issue_pair = (issue.key.encode("utf-8"), issue_summary)
 
-        if len(components) == 0:
+        if not components:
             # if there isn't a component put this in the last grouping.
             headings[next(reversed(headings))].append(issue_pair)
         elif len(components) == 1:
@@ -130,7 +129,7 @@ def generate_changelog_rst(config, headings, fixVersion):
     """
 
     # invert the mapping of nested, so we can properly handle subheadings.
-    nested = dict()
+    nested = {}
     for enclosing_level, sub_headings in config.get('nesting').items():
         for component in sub_headings:
             nested[component] = enclosing_level
@@ -149,53 +148,53 @@ def generate_changelog_rst(config, headings, fixVersion):
         if heading in nested:
             # we deal with nested headings when we do their parent. skip here.
             continue
-        else:
-            if heading in config.get('nesting') and len(issues) == 0:
+        if heading in config.get('nesting') and len(issues) == 0:
                 # if a heading has subheadings, and all are empty, then we should skip it entirely.
-                empty_sub_headings = 0
-                for sub in config.get('nesting').get(heading):
-                    if len(headings[sub]) == 0:
-                        empty_sub_headings += 1
-                if empty_sub_headings == len(config.get('nesting').get(heading)):
-                    continue
-            elif len(issues) == 0:
-                # skip empty headings.
+            empty_sub_headings = sum(
+                len(headings[sub]) == 0
+                for sub in config.get('nesting').get(heading)
+            )
+
+            if empty_sub_headings == len(config.get('nesting').get(heading)):
                 continue
+        elif len(issues) == 0:
+            # skip empty headings.
+            continue
 
-            # format the heading.
-            r.heading(text=heading, indent=0,
-                      char='~')
-            r.newline()
+        # format the heading.
+        r.heading(text=heading, indent=0,
+                  char='~')
+        r.newline()
 
-            if len(issues) == 1:
-                r.content("{1} {0}".format(issues[0][1], r.role(
-                    "issue", issues[0][0])), wrap=False)
-            else:
-                for issue in issues:
-                    r.li("{1} {0}".format(issue[1], r.role(
-                        "issue", issue[0])), wrap=False)
-            r.newline()
+        if len(issues) == 1:
+            r.content("{1} {0}".format(issues[0][1], r.role(
+                "issue", issues[0][0])), wrap=False)
+        else:
+            for issue in issues:
+                r.li("{1} {0}".format(issue[1], r.role(
+                    "issue", issue[0])), wrap=False)
+        r.newline()
 
-            # repeat the above formatting with minor variations to do the nesting.
-            if heading in config.get('nesting'):
-                for sub in config.get('nesting').get(heading):
-                    if len(headings[sub]) == 0:
-                        continue
+        # repeat the above formatting with minor variations to do the nesting.
+        if heading in config.get('nesting'):
+            for sub in config.get('nesting').get(heading):
+                if len(headings[sub]) == 0:
+                    continue
 
-                    r.heading(text=sub, indent=0,
-                              # char=giza.content.helper.character_levels[level+1])
-                              char='`')
-                    r.newline()
+                r.heading(text=sub, indent=0,
+                          # char=giza.content.helper.character_levels[level+1])
+                          char='`')
+                r.newline()
 
-                    sub_issues = headings[sub]
-                    if len(sub_issues) == 0:
-                        r.content("{1} {0}".format(sub_issues[0][1].strip(), r.role(
-                            "issue", sub_issues[0][0])), wrap=False)
-                    else:
-                        for issue in sub_issues:
-                            r.li("{1} {0}".format(issue[1].strip(), r.role(
-                                "issue", issue[0])), wrap=False)
-                    r.newline()
+                sub_issues = headings[sub]
+                if len(sub_issues) == 0:
+                    r.content("{1} {0}".format(sub_issues[0][1].strip(), r.role(
+                        "issue", sub_issues[0][0])), wrap=False)
+                else:
+                    for issue in sub_issues:
+                        r.li("{1} {0}".format(issue[1].strip(), r.role(
+                            "issue", issue[0])), wrap=False)
+                r.newline()
 
     return r
 
@@ -204,7 +203,7 @@ def write_changelog_file(rst, fixVersion):
 
     # Output the rst to source/includes/changelogs/releases
     sourceDir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    fn = fixVersion + ".rst"
+    fn = f"{fixVersion}.rst"
     outputDir = os.path.join(
         sourceDir, "source/includes/changelogs/releases", fn)
     rst.write(outputDir)

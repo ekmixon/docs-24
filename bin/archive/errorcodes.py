@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Scans MongoDB source tree for potential error codes and creates multiple outputs"""
 
+
 generateCSV = 'no'
 generateRST = 'no'
 generateJSON = 'no'
@@ -23,14 +24,14 @@ config_file = 'errorcodes.conf'
 
 config = ConfigParser.SafeConfigParser()
 config_flag = False
-config_files = [ config_file, 'bin/{}'.format(config_file)]
+config_files = [config_file, f'bin/{config_file}']
 try:
 	config.read(config_files)
 	config_flag = True
 except:
 	sys.exit("Could not read config file, exiting\n")
 
-if config_flag == True:
+if config_flag:
 	sourceroot = config.get('errorcodes','source')
 	resultsRoot = config.get('errorcodes', 'outputDir')
 	errorsTitle = config.get('errorcodes', 'Title')
@@ -49,8 +50,8 @@ if config_flag == True:
 			sys.exit("Fatal, updating not supported")
 else:
 	sys.exit("No configuration data present, exiting\n")
-	
-if save_to_mongo == True:
+
+if save_to_mongo:
 #	why candygram? because there's only so many times you can use mongo and
 #	database before going mad.  Alt: cf. Blazing Saddles
 	fields = ['database','collection','user','password','port']
@@ -64,10 +65,10 @@ if save_to_mongo == True:
 
 default_domain = "\n\n.. default-domain:: mongodb\n\n"
 
-sys.path.append(sourceroot+"/buildscripts")
+sys.path.append(f"{sourceroot}/buildscripts")
 
 # we only need to scan the mongo source tree not 3rd party
-product_source = sourceroot + '/src/mongo'
+product_source = f'{sourceroot}/src/mongo'
 
 # get mongodb/buildscripts/utils.py 
 import utils
@@ -97,31 +98,30 @@ exceptionTexts = dict({
 	'MSGException': 'MsgException',
 	'MsgAssertionException': 'MsgAssertionException',
 	})
-	
+
 # codes is legacy errocodes.py
 codes = []
 # messages is our real structure
 messages = {}
 
 def assignErrorCodes():
-    cur = 10000
-    for root in assertNames:
-        for x in utils.getAllSourceFiles():
-            print( x )
-            didAnything = False
-            fixed = ""
-            for line in open( x ):
-                s = line.partition( root + "(" )
-                if s[1] == "" or line.startswith( "#define " + root):
-                    fixed += line
-                    continue
-                fixed += s[0] + root + "( " + str( cur ) + " , " + s[2]
-                cur = cur + 1
-                didAnything = True
-            if didAnything:
-                out = open( x , 'w' )
-                out.write( fixed )
-                out.close()
+	cur = 10000
+	for root in assertNames:
+		for x in utils.getAllSourceFiles():
+			print( x )
+			didAnything = False
+			fixed = ""
+			for line in open( x ):
+				s = line.partition(f"{root}(")
+				if s[1] == "" or line.startswith(f"#define {root}"):
+					fixed += line
+					continue
+				fixed += s[0] + root + "( " + str( cur ) + " , " + s[2]
+				cur = cur + 1
+				didAnything = True
+			if didAnything:
+				with open( x , 'w' ) as out:
+					out.write( fixed )
 
 
 def readErrorCodes():   
@@ -222,132 +222,131 @@ def getNextCode( lastCodes = [0] ):
     return highest[0] + 1
 
 def checkErrorCodes():
-    seen = {}
-    errors = []
-    def checkDups( fileName , lineNum , line , code ):
-        if code in seen:
-            print( "DUPLICATE IDS" )
-            print( "%s:%d:%s %s" % ( fileName , lineNum , line.strip() , code ) )
-            print( "%s:%d:%s %s" % seen[code] )
-            errors.append( seen[code] )
-        seen[code] = ( fileName , lineNum , line , code )
-    readErrorCodes( checkDups,False )
-    return len( errors ) == 0 
+	seen = {}
+	errors = []
+	def checkDups( fileName , lineNum , line , code ):
+	    if code in seen:
+	        print( "DUPLICATE IDS" )
+	        print( "%s:%d:%s %s" % ( fileName , lineNum , line.strip() , code ) )
+	        print( "%s:%d:%s %s" % seen[code] )
+	        errors.append( seen[code] )
+	    seen[code] = ( fileName , lineNum , line , code )
+
+	readErrorCodes( checkDups,False )
+	return not errors 
 
 def getBestMessage( err , start ):
-    #print(err + "\n")
-    err = err.partition( start )[2]
-    if not err:
-        return ""
-    err = err.partition( "\"" )[2]
-    if not err:
-        return ""
-    err = err.rpartition( "\"" )[0]
-    if not err:
-        return ""
-    return err
+	#print(err + "\n")
+	err = err.partition( start )[2]
+	if not err:
+	    return ""
+	err = err.partition( "\"" )[2]
+	if not err:
+	    return ""
+	err = err.rpartition( "\"" )[0]
+	return err or ""
     
 def genErrorOutput():
-    """Sort and iterate through codes printing out error codes and messages in RST format."""
-    sys.stderr.write("Generating RST files\n");
-    separatefiles = False
-    if errorsFormat == 'single':
-        errorsrst = resultsRoot + "/errors.txt"
-        if os.path.exists(errorsrst ):
-            i = open(errorsrst , "r" ) 
-        out = open( errorsrst , 'wb' )
-        sys.stderr.write("Generating single file: {}\n".format(errorsrst))
-        titleLen = len(errorsTitle)
-        out.write(":orphan:\n")
-        out.write("=" * titleLen + "\n")
-        out.write(errorsTitle + "\n")
-        out.write("=" * titleLen + "\n")
-        out.write(default_domain);
-    elif errorsFormat == 'separate':
-        separatefiles = True
-    else:
-        raise Exception("Unknown output format: {}".format(errorsFormat))
-    
-    prev = ""
-    seen = {}
-    
-    sourcerootOffset = len(sourceroot)
-    stripChars = " " + "\n"
-    
-#    codes.sort( key=lambda x: x[0]+"-"+x[3] )
-    codes.sort( key=lambda x: int(x[3]) )
-    for f,l,line,num,message,severity in codes:
-        if num in seen:
-            continue
-        seen[num] = True
+	"""Sort and iterate through codes printing out error codes and messages in RST format."""
+	sys.stderr.write("Generating RST files\n");
+	separatefiles = False
+	if errorsFormat == 'single':
+		errorsrst = f"{resultsRoot}/errors.txt"
+		if os.path.exists(errorsrst ):
+		    i = open(errorsrst , "r" )
+		out = open( errorsrst , 'wb' )
+		sys.stderr.write(f"Generating single file: {errorsrst}\n")
+		titleLen = len(errorsTitle)
+		out.write(":orphan:\n")
+		out.write("=" * titleLen + "\n")
+		out.write(errorsTitle + "\n")
+		out.write("=" * titleLen + "\n")
+		out.write(default_domain);
+	elif errorsFormat == 'separate':
+	    separatefiles = True
+	else:
+		raise Exception(f"Unknown output format: {errorsFormat}")
 
-        if f.startswith(sourceroot):
-            f = f[sourcerootOffset+1:]
-        fn = f.rpartition("/")[2]
-        url = ":source:`" + f + "#L" + str(l) + "`"
-        
-        if separatefiles:
-           outputFile = "{}/{:d}.txt".format(resultsRoot,int(num))
-           out = open(outputFile, 'wb')
-           out.write(default_domain)
-           sys.stderr.write("Generating file: {}\n".format(outputFile))
-           
-        out.write(".. line: {}\n\n".format(line.strip(stripChars)))
-        out.write(".. error:: {}\n\n".format(num))
-        if message != '':
-           out.write("   :message: {}\n".format(message.strip(stripChars)))
-        else:
-           message = getBestMessage(line,str(num)).strip(stripChars)
-           if message != '':
-              out.write("   :message: {}\n".format(message))
-        if severity:
-           if severity in severityTexts:
-              out.write("   :severity: {}\n".format(severityTexts[severity]))
-           elif severity in exceptionTexts:
-              out.write("   :throws: {}\n".format(exceptionTexts[severity]))
-           else:
-              out.write("   :severity: {}\n".format(severity))
-        
-        out.write("   :module: {}\n".format(url) )
-        if separatefiles:
-           out.write("\n")
-           out.close()
-
-    if separatefiles==False:    
-        out.write( "\n" )
-        out.close()
-    
-def genErrorOutputCSV():
-	"""Parse through codes array and generate a csv file."""
-	errorsCSV = "{}/errors.csv".format(resultsRoot)
-	sys.stderr.write("Writing to {}\n".format(errorsCSV))
-	if os.path.exists(errorsCSV):
-		i=open(errorsCSV,"r");
-	
-	out = open(errorsCSV, 'wb')
-	out.write('"Error","Text","Module","Line","Message","Severity"' + "\n")
-	
 	prev = ""
 	seen = {}
-	
-	stripChars = " " + "\n" + '"'
 
-	
+	sourcerootOffset = len(sourceroot)
+	stripChars = " " + "\n"
+#    codes.sort( key=lambda x: x[0]+"-"+x[3] )
 	codes.sort( key=lambda x: int(x[3]) )
 	for f,l,line,num,message,severity in codes:
 		if num in seen:
-			continue
+		    continue
 		seen[num] = True
-		
-		if f.startswith( "./"):
-			f=f[2:]
-			fn = f.rpartition("/")[2]
-		
-		out.write('"{}","{}","{}","{}","{}","{}"'.format(num, getBestMessage(line , str(num)).strip(stripChars),f,l,message.strip(stripChars),severity))
-		
-		out.write("\n")
-	
-	out.close()
+
+		if f.startswith(sourceroot):
+		    f = f[sourcerootOffset+1:]
+		fn = f.rpartition("/")[2]
+		url = f":source:`{f}#L{str(l)}`"
+
+		if separatefiles:
+			outputFile = "{}/{:d}.txt".format(resultsRoot,int(num))
+			out = open(outputFile, 'wb')
+			out.write(default_domain)
+			sys.stderr.write(f"Generating file: {outputFile}\n")
+
+		out.write(f".. line: {line.strip(stripChars)}\n\n")
+		out.write(f".. error:: {num}\n\n")
+		if message != '':
+			out.write(f"   :message: {message.strip(stripChars)}\n")
+		else:
+			message = getBestMessage(line,str(num)).strip(stripChars)
+			if message != '':
+				out.write(f"   :message: {message}\n")
+		if severity:
+			if severity in severityTexts:
+				out.write(f"   :severity: {severityTexts[severity]}\n")
+			elif severity in exceptionTexts:
+				out.write(f"   :throws: {exceptionTexts[severity]}\n")
+			else:
+				out.write(f"   :severity: {severity}\n")
+
+		out.write(f"   :module: {url}\n")
+		if separatefiles:
+		   out.write("\n")
+		   out.close()
+
+	if not separatefiles:    
+		out.write( "\n" )
+		out.close()
+    
+def genErrorOutputCSV():
+	"""Parse through codes array and generate a csv file."""
+	errorsCSV = f"{resultsRoot}/errors.csv"
+	sys.stderr.write(f"Writing to {errorsCSV}\n")
+	if os.path.exists(errorsCSV):
+		i=open(errorsCSV,"r");
+
+	with open(errorsCSV, 'wb') as out:
+		out.write('"Error","Text","Module","Line","Message","Severity"' + "\n")
+
+		prev = ""
+		seen = {}
+
+		stripChars = " " + "\n" + '"'
+
+
+		codes.sort( key=lambda x: int(x[3]) )
+		for f,l,line,num,message,severity in codes:
+			if num in seen:
+				continue
+			seen[num] = True
+
+			if f.startswith( "./"):
+				f=f[2:]
+				fn = f.rpartition("/")[2]
+
+			out.write(
+				f'"{num}","{getBestMessage(line , str(num)).strip(stripChars)}","{f}","{l}","{message.strip(stripChars)}","{severity}"'
+			)
+
+
+			out.write("\n")
 	
 def writeToMongo():
 	"""Pipe the messages array into mongodb"""
@@ -358,9 +357,9 @@ def writeToMongo():
 	errorcodes = db['errors']
 #	errorcodes.insert(messages)
 	for errCode in messages.keys():
-		sys.stderr.write('Inserting code: {}\n'.format(errCode))
+		sys.stderr.write(f'Inserting code: {errCode}\n')
 		result = errorcodes.insert(messages[errCode])
-		sys.stderr.write('Result: {}\n'.format(result))
+		sys.stderr.write(f'Result: {result}\n')
 #	for k in messages:
 #		print("{}\t{}".format(k,messages[k]))
 #		errorcodes.insert(k,messages[k])
@@ -382,11 +381,10 @@ if __name__ == "__main__":
 		sys.stderr.write("Not generating CSV file\n");
 	if (generateJSON== 'yes'):
 		import json
-		outputFile = "{}/errorcodes.json".format(resultsRoot)
-		out = open(outputFile, 'wb')
-		sys.stderr.write("Generating JSON file: {}\n".format(outputFile))
-		out.write(json.dumps(messages))
-		out.close()
+		outputFile = f"{resultsRoot}/errorcodes.json"
+		with open(outputFile, 'wb') as out:
+			sys.stderr.write(f"Generating JSON file: {outputFile}\n")
+			out.write(json.dumps(messages))
 	else:
 		sys.stderr.write("Not generating JSON file\n");
 
